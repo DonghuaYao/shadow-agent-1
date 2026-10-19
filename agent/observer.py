@@ -5,9 +5,7 @@ from pathlib import Path
 
 
 def parse_bounds(bounds):
-    """Convert Android bounds into center coordinates."""
     numbers = list(map(int, re.findall(r"\d+", bounds)))
-
     if len(numbers) != 4:
         return None
 
@@ -20,33 +18,41 @@ def parse_bounds(bounds):
 
 
 def observe_ui(xml_path="window.xml"):
-    """Read Android UI elements from XML."""
     path = Path(xml_path)
 
     if not path.exists():
-        raise FileNotFoundError(f"UI file not found: {path}")
+        raise FileNotFoundError(
+            f"UI file not found: {path}"
+        )
 
-    tree = ET.parse(path)
-    root = tree.getroot()
-
+    root = ET.parse(path).getroot()
     elements = []
 
-    for node in root.iter("node"):
-        text = node.get("text", "")
-        description = node.get("content-desc", "")
+    def walk(node, clickable_parent=None):
         clickable = node.get("clickable", "false") == "true"
-        bounds = node.get("bounds", "")
+        center = parse_bounds(node.get("bounds", ""))
 
-        if not (text or description or clickable):
-            continue
+        # The nearest clickable ancestor
+        if clickable and center:
+            clickable_parent = center
 
-        elements.append({
-            "text": text,
-            "description": description,
-            "clickable": clickable,
-            "center": parse_bounds(bounds),
-        })
+        if node.tag == "node":
+            text = node.get("text", "")
+            description = node.get("content-desc", "")
 
+            if text or description or clickable:
+                elements.append({
+                    "text": text,
+                    "description": description,
+                    "clickable": clickable,
+                    "center": center,
+                    "tap_center": clickable_parent,
+                })
+
+        for child in node:
+            walk(child, clickable_parent)
+
+    walk(root)
     return elements
 
 
