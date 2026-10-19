@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Shadow Agent runtime files
+window.xml
+__pycache__/
+*.pyc
