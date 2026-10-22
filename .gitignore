@@ -223,3 +223,6 @@ __marimo__/
 window.xml
 __pycache__/
 *.pyc
+
+runs/
+.env
