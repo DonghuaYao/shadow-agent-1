@@ -57,6 +57,7 @@ def run(task, package, max_steps=15):
 
     history = []
     last_screen = None
+    main_changes = 0
     status, detail = "max_steps", f"跑满 {max_steps} 步仍未结束"
 
     with open(folder / "steps.jsonl", "w", encoding="utf-8") as log:
@@ -97,10 +98,11 @@ def run(task, package, max_steps=15):
             if main_now != main_before:
                 print("     ! 主屏最前面变了:", main_before, "->", main_now)
                 main_before = main_now
+                main_changes += 1
 
             record["result"] = result
             log.write(json.dumps(record, ensure_ascii=False) + "\n")
             log.flush()
             history.append(f"{step}. {json.dumps(action, ensure_ascii=False)} -> {result}")
 
-    return {"status": status, "detail": detail, "steps": step, "log": str(folder)}
+    return {"status": status, "detail": detail, "steps": step, "log": str(folder), "main_changes": main_changes}
