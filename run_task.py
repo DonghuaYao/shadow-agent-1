@@ -1,4 +1,4 @@
-﻿"""任务：在联系人 App 里新建一个联系人，结束后用系统数据库独立验证。
+"""任务：在联系人 App 里新建一个联系人，结束后用系统数据库独立验证。
 单次运行: py run_task.py
 """
 import re
@@ -32,17 +32,21 @@ def has_contact(rows):
 
 
 def reset():
-    """删掉测试联系人，并让联系人 App 回到全新状态（引导页、权限弹窗都会重来）"""
+    """清空所有联系人（这是测试模拟器，里面只有测试数据），并让联系人 App 回到全新状态"""
     uri = "content://com.android.contacts/raw_contacts?caller_is_syncadapter=true"
-    where = f"display_name='{NAME}'"
-    device.adb(f'content delete --uri "{uri}" --where "{where}"')
-    if has_contact(saved_contacts()):
-        # 兜底：直接清空联系人数据库
+    device.adb(f'content delete --uri "{uri}"')
+    if "Row:" in saved_contacts():
         device.adb("pm clear com.android.providers.contacts")
         time.sleep(2)
     device.adb(f"pm clear {PACKAGE}")
     time.sleep(1)
-    return not has_contact(saved_contacts())
+    return "Row:" not in saved_contacts()
+
+
+def check():
+    """独立检查：直接查系统数据库，返回 (是否通过, 数据库现状)"""
+    rows = saved_contacts()
+    return has_contact(rows), "系统联系人数据库里现有: " + (rows.strip() or "（空）")
 
 
 def run_once():
@@ -51,7 +55,7 @@ def run_once():
         return {"status": "reset_failed", "verified": False, "steps": 0, "seconds": 0,
                 "main_changes": 0, "detail": "重置失败，联系人仍然存在", "log": ""}
     start = time.time()
-    result = loop.run(TASK, PACKAGE)
+    result = loop.run(TASK, PACKAGE, verify=check)
     result["seconds"] = round(time.time() - start)
     result["verified"] = has_contact(saved_contacts())
     return result

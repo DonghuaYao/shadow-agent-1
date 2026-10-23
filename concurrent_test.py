@@ -130,6 +130,7 @@ if result:
     print("副屏任务:", "成功" if ok else "失败", "| agent 自称", result["status"],
           "| 独立验证", "通过" if result["verified"] else "未通过",
           "| 步数", result["steps"])
+    print("   agent 自称完成但独立检查没通过的次数:", result.get("false_claims", 0))
     if not ok:
         print("   详情:", result["detail"])
 if result and not result["verified"]:

@@ -44,9 +44,17 @@ def run_action(action, elements):
         time.sleep(0.8)
         device.clear_text()
         text = action.get("text", "")
-        device.type_text(text)
-        time.sleep(1.0)
-        shown = read_back(target, text)
+        shown = None
+        for attempt in range(3):
+            if attempt:  # 内容不一致：重新点进输入框，清空后重输
+                device.tap(target["x"], target["y"])
+                time.sleep(0.5)
+                device.clear_text()
+            device.type_text(text)
+            time.sleep(1.0)
+            shown = read_back(target, text)
+            if shown is None or norm(shown) == norm(text):
+                break  # 读不到输入框时不重试（可能有弹窗，乱点会点到弹窗按钮）
         note = ""
         if shown is not None and norm(shown) != norm(text):
             note = f"（注意：输入框里实际显示的是 {shown!r}，和要输入的不一致，需要重新输入）"
@@ -84,7 +92,7 @@ def read_screen(allowed):
     return elements, packages, False
 
 
-def run(task, package, max_steps=15):
+def run(task, package, max_steps=20, verify=None, max_verify_rounds=2):
     client = brain.make_client()
     folder = Path("runs") / datetime.now().strftime("%Y%m%d-%H%M%S")
     folder.mkdir(parents=True)
@@ -97,6 +105,7 @@ def run(task, package, max_steps=15):
     history = []
     last_screen = None
     main_changes = 0
+    false_claims = 0
     step = 0
     status, detail = "max_steps", f"跑满 {max_steps} 步仍未结束"
 
@@ -124,6 +133,22 @@ def run(task, package, max_steps=15):
             kind = action.get("action")
             why = action.get("reason") or action.get("summary") or ""
             print(f"[{step}] {kind}: {why}")
+
+            if kind == "done" and verify is not None:
+                passed, info = verify()
+                if not passed:
+                    false_claims += 1
+                    result = f"独立检查未通过：{info}。保存的内容有错或缺失，请修正后再 done"
+                    print("     ! 自称完成，但独立检查没通过:", info)
+                    record["result"] = result
+                    log.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    log.flush()
+                    if false_claims > max_verify_rounds:
+                        status = "unverified"
+                        detail = f"自称完成，但独立检查多次未通过：{info}"
+                        break
+                    history.append(f"{step}. done -> {result}")
+                    continue
 
             if kind in ("done", "fail"):
                 status = kind
@@ -154,4 +179,5 @@ def run(task, package, max_steps=15):
             history.append(f"{step}. {json.dumps(action, ensure_ascii=False)} -> {result}")
 
     return {"status": status, "detail": detail, "steps": step,
-            "log": str(folder), "main_changes": main_changes}
+            "log": str(folder), "main_changes": main_changes,
+            "false_claims": false_claims}
