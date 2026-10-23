@@ -128,7 +128,10 @@ def run(task, package, max_steps=20, verify=None, max_verify_rounds=2):
                 shown += "\n（注意：上一步之后界面没有任何变化）"
             last_screen = screen
 
-            action, raw = brain.decide(client, task, history, shown)
+            try:
+                action, raw = brain.decide(client, task, history, shown)
+            except Exception as e:
+                action, raw = {"action": "wait", "reason": "模型接口没有响应，稍后重试"}, repr(e)
             record["model_reply"] = raw
             kind = action.get("action")
             why = action.get("reason") or action.get("summary") or ""

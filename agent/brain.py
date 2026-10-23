@@ -33,6 +33,8 @@ def make_client():
     return OpenAI(
         api_key=os.environ["SILICONFLOW_API_KEY"],
         base_url="https://api.siliconflow.cn/v1",
+        timeout=40,
+        max_retries=1,
     )
 
 

@@ -55,7 +55,12 @@ def run_once():
         return {"status": "reset_failed", "verified": False, "steps": 0, "seconds": 0,
                 "main_changes": 0, "detail": "重置失败，联系人仍然存在", "log": ""}
     start = time.time()
-    result = loop.run(TASK, PACKAGE, verify=check)
+    try:
+        result = loop.run(TASK, PACKAGE, verify=check)
+    except Exception as e:
+        print("     ! 运行中断:", repr(e))
+        result = {"status": "crashed", "detail": repr(e), "steps": 0, "log": "",
+                  "main_changes": 0, "false_claims": 0}
     result["seconds"] = round(time.time() - start)
     result["verified"] = has_contact(saved_contacts())
     return result
