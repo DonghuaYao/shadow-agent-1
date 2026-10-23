@@ -88,18 +88,33 @@ def type_text(text):
     adb(f"input -d {DISPLAY_ID} text '{safe}'")
 
 
-def dump_ui(retries=3):
-    """读副屏的界面树，返回 xml 文字"""
+def dump_ui_uiautomator(retries=3):
+    """读所有屏幕的界面树。
+    必须用 --windows：普通的 dump 加 --display 参数不生效，
+    读到的永远是系统焦点所在的那块屏，用户一操作主屏就会读错。
+    --windows 的结果按屏幕分段，不受焦点影响。"""
     for _ in range(retries):
         adb("rm -f /sdcard/shadow_ui.xml")  # 先删旧文件，避免读到过期数据
-        adb(f"uiautomator dump --display {DISPLAY_ID} /sdcard/shadow_ui.xml")
+        adb("uiautomator dump --windows /sdcard/shadow_ui.xml")
         raw = subprocess.run(
             [ADB, "exec-out", "cat", "/sdcard/shadow_ui.xml"],
             capture_output=True,
             timeout=20,
         ).stdout
         text = raw.decode("utf-8", errors="replace")
-        if "<hierarchy" in text:
+        if "<displays" in text or "<hierarchy" in text:
             return text
         time.sleep(1)
     raise RuntimeError("读取界面树失败")
+
+
+def dump_ui():
+    """读所有屏幕的界面树。优先用手机上的 Shadow Eye（不用等界面空闲，
+    用户在主屏高频操作时也能读），没装或读不到时退回 uiautomator。"""
+    try:
+        from agent import eye
+        if eye.is_enabled():
+            return eye.dump()
+    except Exception as e:
+        print("     (Shadow Eye 读取失败，改用 uiautomator:", e, ")")
+    return dump_ui_uiautomator()

@@ -2,8 +2,15 @@
 import re
 import xml.etree.ElementTree as ET
 
+from agent.device import DISPLAY_ID
+
 BOUNDS = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
-IGNORE_PACKAGES = {"com.android.systemui"}  # 状态栏、导航栏，不是任务内容
+# 状态栏、导航栏、键盘都不是任务内容
+IGNORE_PACKAGES = {
+    "com.android.systemui",
+    "com.google.android.inputmethod.latin",
+    "com.android.inputmethod.latin",
+}
 
 
 def clean(s):
@@ -57,6 +64,7 @@ def walk(node, inside_clickable, elements):
         elements.append({
             "kind": a.get("class", "").split(".")[-1],
             "label": label,
+            "package": a.get("package", ""),
             "clickable": clickable,
             "editable": editable,
             "scrollable": scrollable,
@@ -70,12 +78,28 @@ def walk(node, inside_clickable, elements):
         walk(child, inside_clickable or clickable, elements)
 
 
-def parse(xml_text):
-    """界面树 xml -> 元素列表，每个元素有编号 id"""
+def top_nodes(parent):
+    """找出最外层的 node（中间可能隔着 window 之类的外壳元素），跳过输入法窗口"""
+    for child in parent:
+        if child.tag == "node":
+            yield child
+        elif "input" in child.attrib.get("type", "").lower():
+            continue
+        else:
+            yield from top_nodes(child)
+
+
+def parse(xml_text, display_id=DISPLAY_ID):
+    """界面树 xml -> 指定屏幕的元素列表，每个元素有编号 id"""
     root = ET.fromstring(xml_text)
+    scope = root
+    if root.tag == "displays":
+        scope = next((d for d in root if d.attrib.get("id") == str(display_id)), None)
+        if scope is None:
+            return []
     elements = []
-    for child in root:
-        walk(child, False, elements)
+    for node in top_nodes(scope):
+        walk(node, False, elements)
     for i, e in enumerate(elements):
         e["id"] = i
     return elements

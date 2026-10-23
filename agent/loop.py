@@ -7,6 +7,8 @@ from pathlib import Path
 from agent import brain, device, ui
 
 SCREEN_WIDTH = 720  # 副屏宽度，滑动时用
+# 权限请求这类系统界面，在任何 App 的任务里都可能出现，算正常
+SYSTEM_OK = {"com.google.android.permissioncontroller", "com.android.permissioncontroller"}
 
 
 def run_action(action, elements):
@@ -46,10 +48,24 @@ def run_action(action, elements):
     return f"错误：不认识的动作 {kind}"
 
 
+def read_screen(allowed):
+    """读副屏界面。读到的不是目标 App（或者是空的）就等一等再读，最多 3 次。
+    返回 (元素列表, 看到的包名, 是否可信)"""
+    elements, packages = [], set()
+    for _ in range(3):
+        elements = ui.parse(device.dump_ui())
+        packages = {e["package"] for e in elements}
+        if elements and packages & allowed:
+            return elements, packages, True
+        time.sleep(2)
+    return elements, packages, False
+
+
 def run(task, package, max_steps=15):
     client = brain.make_client()
     folder = Path("runs") / datetime.now().strftime("%Y%m%d-%H%M%S")
     folder.mkdir(parents=True)
+    allowed = {package} | SYSTEM_OK
 
     device.stop_app(package)
     device.start_app(package)
@@ -58,24 +74,33 @@ def run(task, package, max_steps=15):
     history = []
     last_screen = None
     main_changes = 0
+    step = 0
     status, detail = "max_steps", f"跑满 {max_steps} 步仍未结束"
 
     with open(folder / "steps.jsonl", "w", encoding="utf-8") as log:
         for step in range(1, max_steps + 1):
             time.sleep(1.5)  # 等页面稳定
-            elements = ui.parse(device.dump_ui())
+            elements, packages, trusted = read_screen(allowed)
             screen = ui.describe(elements)
+            record = {"step": step, "screen": screen, "model_reply": "", "result": ""}
+
+            if not trusted:
+                status = "wrong_screen"
+                detail = f"副屏上读到的不是目标 App，包名: {sorted(packages)}"
+                print("     !", detail)
+                log.write(json.dumps(record, ensure_ascii=False) + "\n")
+                break
+
             shown = screen
             if screen == last_screen:
                 shown += "\n（注意：上一步之后界面没有任何变化）"
             last_screen = screen
 
             action, raw = brain.decide(client, task, history, shown)
+            record["model_reply"] = raw
             kind = action.get("action")
             why = action.get("reason") or action.get("summary") or ""
             print(f"[{step}] {kind}: {why}")
-
-            record = {"step": step, "screen": screen, "model_reply": raw, "result": ""}
 
             if kind in ("done", "fail"):
                 status = kind
@@ -105,4 +130,5 @@ def run(task, package, max_steps=15):
             log.flush()
             history.append(f"{step}. {json.dumps(action, ensure_ascii=False)} -> {result}")
 
-    return {"status": status, "detail": detail, "steps": step, "log": str(folder), "main_changes": main_changes}
+    return {"status": status, "detail": detail, "steps": step,
+            "log": str(folder), "main_changes": main_changes}
