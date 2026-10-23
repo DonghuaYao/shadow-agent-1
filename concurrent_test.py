@@ -63,7 +63,23 @@ def wait_main(check, seconds=15):
     return None
 
 
+def clear_anr():
+    """主屏上如果有“无响应”弹窗，先点 Wait，让模拟器缓一缓"""
+    for _ in range(5):
+        try:
+            main = ui.parse(eye.dump(), USER_DISPLAY)
+        except Exception:
+            return
+        wait = ui.find(main, "Wait")
+        if wait is None or not any("responding" in e["label"] for e in main):
+            return
+        print("  主屏上有无响应弹窗，先点 Wait 并等一等")
+        device.adb(f"input -d {USER_DISPLAY} tap {wait['x']} {wait['y']}")
+        time.sleep(6)
+
+
 def setup_user_screen():
+    clear_anr()
     """在主屏打开 Settings 的搜索页，让光标停在输入框里"""
     device.adb("am force-stop com.android.settings")
     device.adb("am force-stop com.google.android.settings.intelligence")

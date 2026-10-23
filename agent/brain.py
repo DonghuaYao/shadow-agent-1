@@ -14,7 +14,7 @@ SYSTEM_PROMPT = """你是一个操作安卓手机的助手。每一轮你会看�
 {"action":"swipe","direction":"up或down","reason":"..."}    滚动页面，up 表示看下面的内容
 {"action":"back","reason":"..."}                           按返回键
 {"action":"wait","reason":"..."}                           页面还在加载时等一等
-{"action":"handoff","reason":"..."}                        遇到登录、验证码、支付等必须由用户本人完成的步骤时使用
+{"action":"handoff","reason":"..."}                        只有遇到登录、验证码、支付这类必须由用户本人完成的步骤才使用；界面卡顿、输入出错、不知道怎么做都不是理由，自己重试
 {"action":"done","summary":"..."}                          任务已经完成
 {"action":"fail","reason":"..."}                           确定无法完成时使用
 

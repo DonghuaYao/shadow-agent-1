@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from agent import brain, device, ui
+from agent import brain, device, handoff, ui
 
 SCREEN_WIDTH = 720  # 副屏宽度，滑动时用
 # 权限请求这类系统界面，在任何 App 的任务里都可能出现，算正常
@@ -92,7 +92,7 @@ def read_screen(allowed):
     return elements, packages, False
 
 
-def run(task, package, max_steps=20, verify=None, max_verify_rounds=2):
+def run(task, package, max_steps=20, verify=None, max_verify_rounds=2, interactive=False):
     client = brain.make_client()
     folder = Path("runs") / datetime.now().strftime("%Y%m%d-%H%M%S")
     folder.mkdir(parents=True)
@@ -161,8 +161,8 @@ def run(task, package, max_steps=20, verify=None, max_verify_rounds=2):
 
             if kind == "handoff":
                 print("     需要你来处理:", why)
-                input("     处理完后按回车继续 ...")
-                result = "用户已处理，继续"
+                result = handoff.request(why, interactive)
+                print("     ->", result)
             else:
                 try:
                     result = run_action(action, elements)
