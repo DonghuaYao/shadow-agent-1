@@ -22,10 +22,11 @@ def read_file():
     return raw.decode("utf-8", errors="replace")
 
 
-def dump(timeout=6.0):
+def dump(display=None, timeout=6.0):
     """请求一次界面导出，等到手机写出对应编号的文件后返回 xml 文字"""
     request_id = str(int(time.time() * 1000))
-    adb(f"am broadcast -a {PACKAGE}.DUMP -p {PACKAGE} --es id {request_id}")
+    extra = f" --es display {display}" if display is not None else ""
+    adb(f"am broadcast -a {PACKAGE}.DUMP -p {PACKAGE} --es id {request_id}{extra}")
     deadline = time.time() + timeout
     while time.time() < deadline:
         text = read_file()

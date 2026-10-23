@@ -1,4 +1,4 @@
-﻿"""设备控制层：所有操作都只发给副屏 DISPLAY_ID，不碰主屏。"""
+"""设备控制层：所有操作都只发给副屏 DISPLAY_ID，不碰主屏。"""
 import os
 import re
 import subprocess
@@ -114,7 +114,7 @@ def dump_ui():
     try:
         from agent import eye
         if eye.is_enabled():
-            return eye.dump()
+            return eye.dump(DISPLAY_ID)
     except Exception as e:
         print("     (Shadow Eye 读取失败，改用 uiautomator:", e, ")")
     return dump_ui_uiautomator()

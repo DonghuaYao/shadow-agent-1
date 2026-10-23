@@ -1,4 +1,4 @@
-﻿"""主循环：观察界面 -> 问大模型 -> 执行动作 -> 记录。"""
+"""主循环：观察界面 -> 问大模型 -> 执行动作 -> 记录。"""
 import json
 import time
 from datetime import datetime
@@ -8,7 +8,25 @@ from agent import brain, device, ui
 
 SCREEN_WIDTH = 720  # 副屏宽度，滑动时用
 # 权限请求这类系统界面，在任何 App 的任务里都可能出现，算正常
-SYSTEM_OK = {"com.google.android.permissioncontroller", "com.android.permissioncontroller"}
+SYSTEM_OK = {"com.google.android.permissioncontroller", "com.android.permissioncontroller", "android"}
+
+
+def norm(s):
+    """比较文字时忽略空格、括号、横线和大小写"""
+    return "".join(ch for ch in s.lower() if ch.isalnum())
+
+
+def read_back(target, typed):
+    """输入后重新读一遍副屏，返回刚输入的那个输入框里显示的文字；找不到返回 None"""
+    try:
+        elements = ui.parse(device.dump_ui())
+    except Exception:
+        return None
+    fields = [e for e in elements if e["editable"]]
+    if not fields:
+        return None
+    best = min(fields, key=lambda e: abs(e["x"] - target["x"]) + abs(e["y"] - target["y"]))
+    return best["label"]
 
 
 def run_action(action, elements):
@@ -27,7 +45,12 @@ def run_action(action, elements):
         device.clear_text()
         text = action.get("text", "")
         device.type_text(text)
-        return f'在 [{index}] 输入了 "{text}"'
+        time.sleep(1.0)
+        shown = read_back(target, text)
+        note = ""
+        if shown is not None and norm(shown) != norm(text):
+            note = f"（注意：输入框里实际显示的是 {shown!r}，和要输入的不一致，需要重新输入）"
+        return f'在 [{index}] 输入了 "{text}"，界面显示 {shown!r}{note}'
 
     if kind == "swipe":
         mid = SCREEN_WIDTH // 2

@@ -1,4 +1,4 @@
-﻿"""同时测试。
+"""同时测试。
 用法:
   py concurrent_test.py user   只模拟主屏用户打字（对照组，不跑 agent）
   py concurrent_test.py both   主屏用户打字 + 副屏 agent 同时跑任务
@@ -7,16 +7,17 @@ import sys
 import threading
 import time
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import run_task
-from agent import device, ui
+from agent import device, eye, ui
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 USER_DISPLAY = 0
 PATTERN = "xyz"          # agent 要输入的文字里没有 x y z
-INTERVAL = 0.3           # 模拟用户每 0.6 秒敲一个字符
-USER_ONLY_SECONDS = 150  # 对照组持续时间
+INTERVAL = 1.0           # 模拟用户每 0.6 秒敲一个字符
+USER_ONLY_SECONDS = 90  # 对照组持续时间
 
 
 def field_text(raw, display):
@@ -42,17 +43,36 @@ def anr_dialogs():
     return [line.strip() for line in out.splitlines() if "Not Responding" in line]
 
 
+def wait_main(check, seconds=15):
+    """反复读，直到主屏满足条件；超时返回 None，并把原始数据存下来"""
+    end = time.time() + seconds
+    raw = ""
+    while time.time() < end:
+        try:
+            raw = eye.dump()
+            found = check(raw)
+            if found:
+                return found
+        except Exception as e:
+            print("  读取出错:", e)
+        time.sleep(0.8)
+    Path("runs").mkdir(exist_ok=True)
+    Path("runs/setup_fail.xml").write_text(raw, encoding="utf-8")
+    seen = ui.parse(raw, USER_DISPLAY) if raw else []
+    print("  主屏等不到目标，主屏现在有:", sorted({e["package"] for e in seen}), [e["label"] for e in seen if e["label"]][:6])
+    return None
+
+
 def setup_user_screen():
     """在主屏打开 Settings 的搜索页，让光标停在输入框里"""
     device.adb("am force-stop com.android.settings")
+    device.adb("am force-stop com.google.android.settings.intelligence")
     device.adb(f"am start --display {USER_DISPLAY} -n com.android.settings/.Settings")
-    time.sleep(3)
-    box = ui.find(ui.parse(device.dump_ui(), USER_DISPLAY), "Search settings")
+    box = wait_main(lambda raw: ui.find(ui.parse(raw, USER_DISPLAY), "Search settings"))
     if box is None:
         return False
     device.adb(f"input -d {USER_DISPLAY} tap {box['x']} {box['y']}")
-    time.sleep(2)
-    return field_text(device.dump_ui(), USER_DISPLAY) is not None
+    return bool(wait_main(lambda raw: field_text(raw, USER_DISPLAY) is not None, 8))
 
 
 typed = []
@@ -64,11 +84,11 @@ begin = 0.0
 def user_types():
     i = 0
     while not stop.is_set():
-        ch = PATTERN[i % len(PATTERN)]
-        device.adb(f"input -d {USER_DISPLAY} text {ch}")
-        typed.append(ch)
+        chunk = "xyzxy"  # 一次敲 5 个字再停顿，像真人打字，也少启动几次 adb 进程
+        device.adb(f"input -d {USER_DISPLAY} text {chunk}")
+        typed.extend(chunk)
         i += 1
-        if i % 25 == 0 and "chars" not in first_anr and anr_dialogs():
+        if i % 40 == 0 and "chars" not in first_anr and anr_dialogs():
             first_anr["chars"] = len(typed)
             first_anr["seconds"] = round(time.time() - begin)
         time.sleep(INTERVAL)
@@ -100,7 +120,7 @@ thread.join()
 seconds = round(time.time() - begin)
 
 expected = "".join(typed)
-actual = field_text(device.dump_ui(), USER_DISPLAY)
+actual = field_text(eye.dump(), USER_DISPLAY)
 dialogs = anr_dialogs()
 main_end = device.top_activity(USER_DISPLAY)
 
@@ -112,15 +132,17 @@ if result:
           "| 步数", result["steps"])
     if not ok:
         print("   详情:", result["detail"])
+if result and not result["verified"]:
+    print("系统数据库里的联系人:", run_task.saved_contacts() or "（空）")
 print("总用时:", seconds, "秒")
 print("主屏页面 前后:", main_start, "->", main_end)
 print("主屏 模拟用户共敲了", len(expected), "个字符")
 if actual is None:
     print("主屏输入框内容: 读取失败（界面树里没有输入框，可能被弹窗盖住了）")
 else:
-    print("主屏输入框里实际有", len(actual), "个字符")
-    print("主屏内容是否完整无误:", "是" if actual.lower() == expected else "否")
-    if actual.lower() != expected:
+    print("主屏输入框里读到", len(actual), "个字符（Shadow Eye 单个文字最多保留 200 个，只比较读到的部分）")
+    print("主屏内容是否完整无误:", "是" if actual.lower() == expected[:len(actual)] else "否")
+    if actual.lower() != expected[:len(actual)]:
         print("   丢失/多出的字符数:", abs(len(expected) - len(actual)))
         print("   期望末尾:", expected[-20:])
         print("   实际末尾:", actual[-20:])

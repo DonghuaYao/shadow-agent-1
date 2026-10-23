@@ -32,7 +32,7 @@ public class EyeService extends AccessibilityService {
         @Override
         public void onReceive(Context context, Intent intent) {
             String id = intent.getStringExtra("id");
-            writeDump(id == null ? "0" : id);
+            writeDump(id == null ? "0" : id, intent.getStringExtra("display"));
         }
     };
 
@@ -60,7 +60,7 @@ public class EyeService extends AccessibilityService {
     public void onInterrupt() {
     }
 
-    private void writeDump(String requestId) {
+    private void writeDump(String requestId, String onlyDisplay) {
         long start = System.currentTimeMillis();
         StringBuilder sb = new StringBuilder(64 * 1024);
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>");
@@ -69,6 +69,9 @@ public class EyeService extends AccessibilityService {
         int[] count = new int[]{0};
         SparseArray<List<AccessibilityWindowInfo>> all = getWindowsOnAllDisplays();
         for (int i = 0; i < all.size(); i++) {
+            if (onlyDisplay != null && !onlyDisplay.equals(String.valueOf(all.keyAt(i)))) {
+                continue;
+            }
             sb.append("<display id=\"").append(all.keyAt(i)).append("\">");
             for (AccessibilityWindowInfo window : all.valueAt(i)) {
                 appendWindow(sb, window, count);
