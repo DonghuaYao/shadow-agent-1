@@ -55,6 +55,9 @@ def run_action(action, elements):
             shown = read_back(target, text)
             if shown is None or norm(shown) == norm(text):
                 break  # 读不到输入框时不重试（可能有弹窗，乱点会点到弹窗按钮）
+        if action.get("enter"):
+            device.press("KEYCODE_ENTER")
+            time.sleep(1.0)
         note = ""
         if shown is not None and norm(shown) != norm(text):
             note = f"（注意：输入框里实际显示的是 {shown!r}，和要输入的不一致，需要重新输入）"
@@ -92,7 +95,7 @@ def read_screen(allowed):
     return elements, packages, False
 
 
-def run(task, package, max_steps=20, verify=None, max_verify_rounds=2, interactive=False):
+def run(task, package, max_steps=20, verify=None, max_verify_rounds=2, interactive=False, handoff_until=None):
     client = brain.make_client()
     folder = Path("runs") / datetime.now().strftime("%Y%m%d-%H%M%S")
     folder.mkdir(parents=True)
@@ -161,7 +164,7 @@ def run(task, package, max_steps=20, verify=None, max_verify_rounds=2, interacti
 
             if kind == "handoff":
                 print("     需要你来处理:", why)
-                result = handoff.request(why, interactive)
+                result = handoff.request(why, interactive, until=handoff_until)
                 print("     ->", result)
             else:
                 try:

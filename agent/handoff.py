@@ -9,6 +9,8 @@ try:
 except ImportError:
     msvcrt = None
 
+QUIET_SECONDS = 10  # 没有明确的处理完了条件时，用户操作后界面安静这么久才继续
+
 
 def notify():
     """在手机上发一条通知，返回命令输出"""
@@ -26,21 +28,33 @@ def screen_signature():
         return ""
 
 
-def request(reason, interactive, wait_seconds=300):
-    """请求用户接手，返回一句话描述结果"""
+def request(reason, interactive, wait_seconds=300, until=None):
+    """请求用户接手，返回一句话描述结果。
+    until：可选，返回 True 表示用户已经处理完（比如页面离开了登录页）。"""
     if not interactive:
         return ("自动测试模式：没有人可以接手。handoff 只用于登录、验证码、支付，"
                 "其他情况不要用，请继续自己完成。")
     print("     通知结果:", notify() or "已发送")
-    print("     请在副屏窗口里完成这一步；完成后界面一变化我就继续，也可以在终端按回车。")
-    before = screen_signature()
+    print("     请在副屏窗口里完成这一步；处理完后在终端按回车，或者等我检测到处理完成。")
+    last = screen_signature()
+    changed_at = None
     end = time.time() + wait_seconds
     while time.time() < end:
         if msvcrt and msvcrt.kbhit():
             msvcrt.getwch()
             return "用户按回车确认已处理，继续"
         time.sleep(1.5)
-        if screen_signature() != before:
-            time.sleep(3)  # 等用户操作完、页面稳定
-            return "检测到界面已变化，用户已处理，继续"
+        if until is not None:
+            try:
+                if until():
+                    time.sleep(2)
+                    return "检测到用户已处理完，继续"
+            except Exception:
+                pass
+            continue
+        sig = screen_signature()
+        if sig != last:
+            last, changed_at = sig, time.time()
+        elif changed_at and time.time() - changed_at >= QUIET_SECONDS:
+            return "检测到用户操作后界面已稳定，继续"
     return "等了很久用户没有处理，停止等待"
