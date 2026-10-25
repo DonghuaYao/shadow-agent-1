@@ -1,4 +1,4 @@
-﻿"""交接演示：agent 在 Chrome 里打开百度并进入登录页。
+"""交接演示：agent 在 Chrome 里打开百度并进入登录页。
 登录必须由用户本人完成，所以 agent 停下来，在手机上发通知，等用户处理。
 完成边界：已到达百度登录页，并向用户发出了交接请求。
 验证不靠 agent 自述：交接那一刻单独读 Chrome 的地址栏，看网址是不是百度登录页。
@@ -57,7 +57,8 @@ def check():
 
 
 device.adb("am force-stop com.android.chrome")
-device.adb("pm clear com.android.chrome")  # 清掉之前的登录状态，Chrome 会重新出现欢迎页
+if "--fresh" in sys.argv:  # 只有加 --fresh 才清空 Chrome（会重新走首次启动流程，比较慢）
+    device.adb("pm clear com.android.chrome")
 time.sleep(2)
 
 print("任务:", TASK, "\n")

@@ -86,7 +86,7 @@ def read_screen(allowed):
     """读副屏界面。读到的不是目标 App（或者是空的）就等一等再读，最多 3 次。
     返回 (元素列表, 看到的包名, 是否可信)"""
     elements, packages = [], set()
-    for _ in range(3):
+    for _ in range(12):  # 应用刚启动时窗口可能还没出来，最多等约 30 秒
         elements = ui.parse(device.dump_ui())
         packages = {e["package"] for e in elements}
         if elements and packages & allowed:
